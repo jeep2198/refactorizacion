@@ -42,10 +42,45 @@ Conectar a APIs públicas de películas (OMDB y TVMaze) sin requerir API keys. E
 - **OMDB API**: demo key "trilogy" (no requiere registro)
 - **TVMaze API**: pública, sin key
 
+## Setup (una vez)
+
+```bash
+python3 -m venv .venv                # crear entorno virtual
+.venv/bin/pip install -r requirements.txt   # instalar dependencias
+```
+
+Si el entorno ya existe, solo instalar/actualizar dependencias:
+
+```bash
+.venv/bin/pip install -r requirements.txt
+```
+
 ## Cómo Ejecutar
 
 ```bash
-python main.py
+.venv/bin/python main.py
+```
+
+La app arranca el menú interactivo de películas y series. La colección por defecto usa la API key de demo "trilogy"; para usar una propia, definir `OMDB_API_KEY` en el entorno.
+
+## Cómo Ejecutar las Pruebas
+
+La configuración está en `pyproject.toml` (`[tool.pytest.ini_options]`): descubre `tests/test_*.py` y ejecuta cobertura automáticamente (`--cov`).
+
+```bash
+.venv/bin/python -m pytest                    # todas las pruebas (55) + tabla de cobertura
+.venv/bin/python -m pytest -q                 # más silencioso
+.venv/bin/python -m pytest tests/test_apis.py # una sola suite
+.venv/bin/python -m pytest -k "buscar"        # filtrar pruebas por nombre
+.venv/bin/python -m pytest -o addopts=""      # sin cobertura automática
+```
+
+## Lint y Tipado
+
+```bash
+.venv/bin/ruff check .                # linter (config en pyproject.toml)
+.venv/bin/ruff check --select S .     # reglas de seguridad (bandit-compatibles)
+.venv/bin/mypy main.py api_movies.py  # chequeo estático de tipos (strict)
 ```
 
 ## Cómo Refactorizar

@@ -1,187 +1,120 @@
-import requests
-import json
+"""Fachada de la aplicación de películas y series.
 
-# Configuración global hardcoded
-API_KEY_OMDB = "trilogy"  # Demo key
-API_KEY_TMDB = ""  # Vacía porque no la usamos correctamente
-BASE_URL_OMDB = "http://www.omdbapi.com/"
-BASE_URL_TMDB = "https://api.themoviedb.org/3/"
-BASE_URL_TVMAZE = "http://api.tvmaze.com"
+Delega en los submódulos de responsabilidad única:
+  - api.omdb / api.tvmaze: clientes HTTP
+  - services: estado (favoritas, historial, caché) y negocio
+  - models: modelos de datos
+"""
 
-# Variables globales
-USUARIO_LOGUEADO = None
-PELICULAS_FAVORITAS = []
-HISTORIAL_BUSQUEDAS = []
-CACHE_PELICULAS = {}
-CACHE_SERIES = {}
-CONFIG = {
-    "debug": True,
-    "verbose": True,
-    "timeout": 30,
-    "max_retries": 3
+import logging
+
+from api.omdb import OmdbClient
+from api.tvmaze import TVMazeClient
+from services import MovieService, SeriesService
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_CONFIG = {
+    "debug": False,
+    "verbose": False,
+    "timeout": 10,
+    "max_retries": 3,
 }
 
-def hacer_request(url, params=None):
-    """Hace request sin manejo de errores"""
-    if CONFIG["debug"]:
-        print("DEBUG: Haciendo request a " + url)
-    
-    response = requests.get(url, params=params, timeout=CONFIG["timeout"])
-    
-    if CONFIG["verbose"]:
-        print("DEBUG: Status code: " + str(response.status_code))
-    
-    return response.json()
 
-def buscar_pelicula(titulo):
-    """Busca película sin validación"""
-    global CACHE_PELICULAS
-    
-    if titulo in CACHE_PELICULAS:
-        if CONFIG["debug"]:
-            print("DEBUG: Usando cache para " + titulo)
-        return CACHE_PELICULAS[titulo]
-    
-    url = BASE_URL_OMDB + "?t=" + titulo + "&apikey=" + API_KEY_OMDB
-    data = hacer_request(url)
-    
-    if data.get("Response") == "True":
-        CACHE_PELICULAS[titulo] = data
-        return data
-    else:
-        return None
+class MovieApp:
+    """Fachada que compone los servicios de películas y series."""
 
-def buscar_peliculas_por_actor(actor):
-    """Busca películas por actor sin paginación"""
-    url = BASE_URL_OMDB + "?s=" + actor + "&type=movie&apikey=" + API_KEY_OMDB
-    data = hacer_request(url)
-    
-    if data.get("Response") == "True":
-        return data.get("Search", [])
-    return []
+    def __init__(
+        self, api_key_omdb: str = "trilogy", config: dict | None = None
+    ) -> None:
+        self.config = dict(DEFAULT_CONFIG)
+        if config:
+            self.config.update(config)
 
-def buscar_series(nombre):
-    """Busca series en TVMaze"""
-    global CACHE_SERIES
-    
-    cache_key = "series_" + nombre
-    if cache_key in CACHE_SERIES:
-        return CACHE_SERIES[cache_key]
-    
-    url = BASE_URL_TVMAZE + "/search/shows?q=" + nombre
-    data = hacer_request(url)
-    
-    CACHE_SERIES[cache_key] = data
-    return data
+        cliente_omdb = OmdbClient(
+            api_key=api_key_omdb or "",
+            timeout=self.config["timeout"],
+            max_retries=self.config["max_retries"],
+            debug=self.config["debug"],
+            verbose=self.config["verbose"],
+        )
+        cliente_tvmaze = TVMazeClient(
+            timeout=self.config["timeout"],
+            max_retries=self.config["max_retries"],
+            debug=self.config["debug"],
+            verbose=self.config["verbose"],
+        )
+        self.movie_service = MovieService(cliente_omdb)
+        self.series_service = SeriesService(cliente_tvmaze)
 
-def obtener_detalles_serie(id_serie):
-    """Obtiene detalles de serie"""
-    url = BASE_URL_TVMAZE + "/shows/" + str(id_serie)
-    return hacer_request(url)
+    # ------------------------------------------------------- Estado delegado
+    @property
+    def favoritas(self):
+        """Películas favoritas (models.Movie)."""
+        return self.movie_service.favoritas
 
-def obtener_peliculas_populares():
-    """Retorna lista hardcodeada de películas populares"""
-    return [
-        {"titulo": "The Shawshank Redemption", "anio": 1994, "rating": 9.3},
-        {"titulo": "The Godfather", "anio": 1972, "rating": 9.2},
-        {"titulo": "The Dark Knight", "anio": 2008, "rating": 9.0},
-        {"titulo": "Pulp Fiction", "anio": 1994, "rating": 8.9},
-        {"titulo": "Forrest Gump", "anio": 1994, "rating": 8.8}
-    ]
+    @property
+    def historial(self):
+        """Historial de búsquedas."""
+        return self.movie_service.historial
 
-def buscar_peliculas_por_genero(genero):
-    """Busca por género sin usar API real"""
-    peliculas_accion = [
-        {"titulo": "Die Hard", "anio": 1988, "rating": 8.2},
-        {"titulo": "Mad Max Fury Road", "anio": 2015, "rating": 8.1}
-    ]
-    peliculas_comedia = [
-        {"titulo": "Superbad", "anio": 2007, "rating": 7.6},
-        {"titulo": "The Hangover", "anio": 2009, "rating": 7.7}
-    ]
-    
-    if genero.lower() == "accion":
-        return peliculas_accion
-    elif genero.lower() == "comedia":
-        return peliculas_comedia
-    else:
-        return peliculas_accion + peliculas_comedia
+    # ------------------------------------------------------------- Películas
+    def buscar_pelicula(self, titulo: str):
+        """Busca una película por título usando caché."""
+        return self.movie_service.buscar_pelicula(titulo)
 
-def agregar_a_favoritas(pelicula):
-    """Agrega a favoritas sin duplicados (pero con código duplicado)"""
-    global PELICULAS_FAVORITAS
-    
-    # Verificar si ya existe (código duplicado)
-    existe = False
-    for p in PELICULAS_FAVORITAS:
-        if p.get("Title") == pelicula.get("Title"):
-            existe = True
-            break
-    
-    if not existe:
-        PELICULAS_FAVORITAS.append(pelicula)
-        return True
-    return False
+    def buscar_peliculas_por_actor(self, actor: str):
+        """Busca películas por actor."""
+        return self.movie_service.buscar_peliculas_por_actor(actor)
 
-def eliminar_de_favoritas(titulo):
-    """Elimina de favoritas sin verificar existencia"""
-    global PELICULAS_FAVORITAS
-    
-    for i in range(len(PELICULAS_FAVORITAS)):
-        if PELICULAS_FAVORITAS[i].get("Title") == titulo:
-            PELICULAS_FAVORITAS.pop(i)
-            return True
-    return False
+    @staticmethod
+    def obtener_peliculas_populares():
+        """Catálogo local de películas populares."""
+        return MovieService.obtener_peliculas_populares()
 
-def agregar_al_historial(pelicula):
-    """Agrega al historial sin límite"""
-    global HISTORIAL_BUSQUEDAS
-    HISTORIAL_BUSQUEDAS.append({
-        "titulo": pelicula.get("Title", ""),
-        "fecha": "hoy"  # Hardcoded
-    })
+    @staticmethod
+    def buscar_peliculas_por_genero(genero: str):
+        """Películas de prueba según el género."""
+        return MovieService.buscar_peliculas_por_genero(genero)
 
-def limpiar_historial():
-    """Limpia historial"""
-    global HISTORIAL_BUSQUEDAS
-    HISTORIAL_BUSQUEDAS = []
+    # ---------------------------------------------------------------- Series
+    def buscar_series(self, nombre: str):
+        """Busca series por nombre usando caché."""
+        return self.series_service.buscar_series(nombre)
 
-def obtener_estadisticas():
-    """Obtiene estadísticas (código duplicado)"""
-    total_favoritas = 0
-    for p in PELICULAS_FAVORITAS:
-        total_favoritas = total_favoritas + 1
-    
-    total_historial = 0
-    for h in HISTORIAL_BUSQUEDAS:
-        total_historial = total_historial + 1
-    
-    return {
-        "total_favoritas": total_favoritas,
-        "total_historial": total_historial
-    }
+    def obtener_detalles_serie(self, id_serie: int):
+        """Obtiene los detalles de una serie por id."""
+        return self.series_service.obtener_detalles_serie(id_serie)
 
-def exportar_a_json(nombre_archivo):
-    """Exporta datos a JSON sin manejo de errores"""
-    data = {
-        "favoritas": PELICULAS_FAVORITAS,
-        "historial": HISTORIAL_BUSQUEDAS,
-        "estadisticas": obtener_estadisticas()
-    }
-    
-    with open(nombre_archivo, 'w') as f:
-        json.dump(data, f)
-    
-    print("Exportado a " + nombre_archivo)
+    # --------------------------------------------------------- Favoritas
+    def agregar_a_favoritas(self, pelicula) -> bool:
+        """Agrega una película a favoritas si no existe."""
+        return self.movie_service.agregar_a_favoritas(pelicula)
 
-def importar_de_json(nombre_archivo):
-    """Importa datos sin validación"""
-    global PELICULAS_FAVORITAS, HISTORIAL_BUSQUEDAS
-    
-    with open(nombre_archivo, 'r') as f:
-        data = json.load(f)
-    
-    PELICULAS_FAVORITAS = data.get("favoritas", [])
-    HISTORIAL_BUSQUEDAS = data.get("historial", [])
-    
-    print("Importado desde " + nombre_archivo)
+    def eliminar_de_favoritas(self, titulo: str) -> bool:
+        """Elimina una película de favoritas por título."""
+        return self.movie_service.eliminar_de_favoritas(titulo)
+
+    # --------------------------------------------------------- Historial
+    def agregar_al_historial(self, pelicula) -> None:
+        """Registra la búsqueda en el historial."""
+        self.movie_service.agregar_al_historial(pelicula)
+
+    def limpiar_historial(self) -> None:
+        """Limpia el historial de búsquedas."""
+        self.movie_service.limpiar_historial()
+
+    # ------------------------------------------------------- Estadísticas
+    def obtener_estadisticas(self) -> dict:
+        """Retorna estadísticas básicas de uso."""
+        return self.movie_service.obtener_estadisticas()
+
+    # -------------------------------------------------------- Persistencia
+    def exportar_a_json(self, nombre_archivo: str) -> None:
+        """Exporta favoritas e historial a un archivo JSON."""
+        self.movie_service.exportar_a_json(nombre_archivo)
+
+    def importar_de_json(self, nombre_archivo: str) -> None:
+        """Importa favoritas e historial desde un archivo JSON."""
+        self.movie_service.importar_de_json(nombre_archivo)
