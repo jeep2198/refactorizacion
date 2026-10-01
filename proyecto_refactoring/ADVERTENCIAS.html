@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advertencias del Plan de Refactoring</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      line-height: 1.6;
+      background: #f5f5f5;
+    }
+    .warning-box {
+      background: #fff;
+      border-left: 6px solid #dc2626;
+      padding: 20px;
+      margin-bottom: 24px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .warning-number {
+      color: #dc2626;
+      font-weight: bold;
+      font-size: 1.2em;
+      margin-bottom: 8px;
+    }
+    .warning-title {
+      color: #dc2626;
+      font-weight: bold;
+      font-size: 1.1em;
+    }
+    .warning-content {
+      margin-top: 8px;
+    }
+    code {
+      background: #f0f0f0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.9em;
+    }
+    h1 {
+      color: #dc2626;
+      text-align: center;
+      border-bottom: 3px solid #dc2626;
+      padding-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+  <h1>ADVERTENCIAS CRITICAS DEL PLAN</h1>
+
+  <div class="warning-box">
+    <div class="warning-number">PROBLEMA 1</div>
+    <div class="warning-title">Orden incorrecto: Seguridad debe ir ANTES de Testing</div>
+    <div class="warning-content">
+      Las instrucciones originales ponen la <strong>Fase 5 (Seguridad)</strong> antes de la <strong>Fase 6 (Testing)</strong>, pero esto es un error. Si mueves secrets a variables de entorno después de escribir tests, tendrás que reescribir todos los tests que usaban valores hardcodeados. <span style="color: #dc2626; font-weight: bold;">Solución propuesta: invertir el orden.</span>
+    </div>
+  </div>
+
+  <div class="warning-box">
+    <div class="warning-number">PROBLEMA 2</div>
+    <div class="warning-title">Faltan prerequisitos críticos no mencionados</div>
+    <div class="warning-content">
+      Las instrucciones no mencionan configuración básica del proyecto:
+      <ul>
+        <li><code>pyproject.toml</code> o <code>requirements.txt</code> para dependencias nuevas (pytest, python-dotenv, mypy, ruff)</li>
+        <li>Archivo <code>.env.example</code> para documentar variables de entorno</li>
+        <li>Configuración de linter (ruff) y type checker (mypy)</li>
+      </ul>
+      <span style="color: #dc2626; font-weight: bold;">Sin esto, cada fase deja el entorno roto y los tests no corren.</span>
+    </div>
+  </div>
+
+  <div class="warning-box">
+    <div class="warning-number">PROBLEMA 3</div>
+    <div class="warning-title">La Fase 3 es la más disruptiva y está subestimada</div>
+    <div class="warning-content">
+      Separar <code>api_movies.py</code> y <code>main.py</code> en múltiples módulos es un cambio masivo que rompe dependencias en todo el proyecto. Las instrucciones la tratan como una fase más, pero es la que tiene mayor riesgo de romper funcionalidad existente.
+      <br><br>
+      <span style="color: #dc2626; font-weight: bold;">Solución propuesta: dividir en 2 sub-ramas (3a y 3b) y mergear incrementalmente, no hacer un solo commit gigante.</span>
+    </div>
+  </div>
+
+  <div style="text-align: center; margin-top: 40px; color: #666;">
+    <p>Estas advertencias están documentadas para evitar errores comunes en el proceso de refactoring.</p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# Node
+node_modules/
+
+# Entornos / secretos
+.env
+.env.*
+!.env.example
+
+# Editores / SO
+.DS_Store
+.idea/
+.vscode/
+
+# Datos de runtime generados por los managers
+# Anclados con / para que solo apliquen en la raiz del repo
+/cache/
+/backups/
+/imports/
+/exports/
+/plugins/
+/logs/
+
+# Archivos
+*.zip
+
+# Copia local de las skills ya versionadas en .opencode/skills/
+/skills/
